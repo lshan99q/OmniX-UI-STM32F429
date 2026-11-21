@@ -42,9 +42,42 @@ static bsp_key_t keys[5] = {
 static uint8_t joy_stable = 0U;
 static uint8_t joy_candidate = 0U;
 static uint8_t joy_counter = 0U;
+static bool joy_enabled = false;
+
+#if BSP_JOY_USE_ADC
+/* Reject a floating / unpopulated switch: a real analog switch is stable,
+   while open ADC inputs show hundreds of LSB of noise between samples. */
+static bool joy_probe(void)
+{
+    uint16_t min_x = 4095U, max_x = 0U, min_y = 4095U, max_y = 0U;
+
+    for (uint8_t i = 0U; i < 8U; i++) {
+        uint16_t x = BSP_Power_ReadAdc(ADC_CHANNEL_4);
+        uint16_t y = BSP_Power_ReadAdc(ADC_CHANNEL_5);
+        if (x < min_x) min_x = x;
+        if (x > max_x) max_x = x;
+        if (y < min_y) min_y = y;
+        if (y > max_y) max_y = y;
+    }
+
+    if (((uint16_t)(max_x - min_x) > 250U) || ((uint16_t)(max_y - min_y) > 250U)) {
+        return false;
+    }
+    /* Both lines parked on the same rail usually means a digital switch or a
+       short, not a centred analog stick. */
+    if (((max_x < 100U) && (max_y < 100U)) ||
+        ((min_x > 3995U) && (min_y > 3995U))) {
+        return false;
+    }
+    return true;
+}
+#endif
 
 static uint8_t joy_decode(void)
 {
+    if (!joy_enabled) {
+        return 0U;
+    }
 #if BSP_JOY_USE_ADC
     int32_t x = (int32_t)BSP_Power_ReadAdc(ADC_CHANNEL_4);
     int32_t y = (int32_t)BSP_Power_ReadAdc(ADC_CHANNEL_5);
@@ -102,6 +135,11 @@ void BSP_Keys_Init(void)
         keys[i].stable = (HAL_GPIO_ReadPin(keys[i].port, keys[i].pin) == GPIO_PIN_SET) ? 1U : 0U;
         keys[i].counter = 0U;
     }
+#if BSP_JOY_USE_ADC
+    joy_enabled = joy_probe();
+#else
+    joy_enabled = false;
+#endif
     joy_stable = joy_candidate = joy_decode();
     joy_counter = 0U;
 }

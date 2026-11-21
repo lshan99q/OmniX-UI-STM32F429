@@ -25,7 +25,7 @@ ST-LINK_CLI -c SWD -P OmniX_STM32F429.hex -V -Rst
 
 - 编译器：`arm-none-eabi-gcc 14.2.1`
 - 选项：`-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard -O2`
-- Flash：81,016 B / 512 KB
+- Flash：81,168 B / 512 KB
 - RAM：18,376 B / 192 KB（链接脚本预留 2 KB 堆 + 8 KB 栈）
 
 ## 校验

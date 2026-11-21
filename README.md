@@ -85,7 +85,7 @@ prebuilt/OmniX_STM32F429.elf
 prebuilt/SHA256SUMS.txt
 ```
 
-编译结果：**Flash 81,016 B / 512 KB（15.5%），RAM 18,376 B / 192 KB（9.4%）**。
+编译结果：**Flash 81,168 B / 512 KB（15.5%），RAM 18,376 B / 192 KB（9.4%）**。
 工具链：`arm-none-eabi-gcc 14.2.1`，`-mcpu=cortex-m4 -mfloat-abi=hard -O2`。
 
 ### 3. 烧录

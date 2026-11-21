@@ -104,7 +104,9 @@ target_link_options(OmniX_STM32F429 PRIVATE
 
 target_link_libraries(OmniX_STM32F429 PRIVATE m)
 
-set_target_properties(OmniX_STM32F429 PROPERTIES SUFFIX ".elf")
+set_target_properties(OmniX_STM32F429 PROPERTIES
+    SUFFIX ".elf"
+    LINK_DEPENDS "${LINKER_SCRIPT}")
 
 add_custom_command(TARGET OmniX_STM32F429 POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -O ihex

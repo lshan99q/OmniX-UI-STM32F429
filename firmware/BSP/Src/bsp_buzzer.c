@@ -10,6 +10,7 @@
 #include "bsp.h"
 
 static TIM_HandleTypeDef htim4;
+static uint32_t beep_psc = 89U;
 
 void BSP_Buzzer_Init(void)
 {
@@ -27,7 +28,13 @@ void BSP_Buzzer_Init(void)
     HAL_GPIO_Init(BEEP_PORT, &gpio);
 
     htim4.Instance = BEEP_TIM;
-    htim4.Init.Prescaler = 89U;          /* 90 MHz / 90 = 1 MHz */
+    {
+        uint32_t hclk = HAL_RCC_GetHCLKFreq();
+        uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+        uint32_t tim_clk = (pclk1 == hclk) ? pclk1 : (pclk1 * 2U);
+        beep_psc = (tim_clk / 1000000U) - 1U;   /* 1 MHz counter */
+    }
+    htim4.Init.Prescaler = beep_psc;
     htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim4.Init.Period = 249U;            /* 1 MHz / 250 = 4 kHz */
     htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -61,7 +68,7 @@ void BSP_Buzzer_Tone(uint16_t frequency_hz, uint16_t duration_ms)
 
     uint32_t period = 1000000UL / frequency_hz;
 
-    __HAL_TIM_SET_PRESCALER(&htim4, 89U);
+    __HAL_TIM_SET_PRESCALER(&htim4, beep_psc);
     __HAL_TIM_SET_AUTORELOAD(&htim4, period - 1U);
     __HAL_TIM_SET_COMPARE(&htim4, BEEP_TIM_CHANNEL, period / 2U);
     __HAL_TIM_SET_COUNTER(&htim4, 0U);

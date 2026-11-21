@@ -20,5 +20,7 @@ uint8_t BSP_Key_Up(void);
 uint8_t BSP_Key_Down(void);
 uint8_t BSP_Key_Enter(void);
 uint8_t BSP_Key_Back(void);
+uint8_t BSP_Keys_JoyRaw(void);
+uint8_t BSP_Keys_RawMask(void);
 
 #endif /* __BSP_KEYS_H */

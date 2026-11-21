@@ -21,6 +21,8 @@
 #include "bsp_serial.h"
 #include "bsp_led.h"
 #include "bsp_buzzer.h"
+#include "bsp_keys.h"
+#include "bsp_power.h"
 #include "Power.h"
 #include "OLED_UI.h"
 #include "OLED_UI_MenuData.h"
@@ -32,6 +34,7 @@ extern int16_t OLED_UI_Brightness;
 
 static void SystemClock_Config(void);
 static void Error_Handler(void);
+static void Board_SelfTest(void);
 
 int main(void)
 {
@@ -47,10 +50,14 @@ int main(void)
     printf(" Build: %s %s\r\n", __DATE__, __TIME__);
     printf("==============================================\r\n");
 
-    BSP_Buzzer_Tone(2200U, 70U);
+    BSP_Buzzer_Tone(2700U, 500U);
 
     Power_Init();
     Power_StartTask();
+
+    /* Runs before the display is touched: the board can be validated over
+       USART1 even with the OLED, 4G and ESP8266 footprints still empty. */
+    Board_SelfTest();
 
     OLED_UI_Init(&MainMenuPage);
 
@@ -63,9 +70,25 @@ int main(void)
            Power_GetBatteryPercent(), (double)Power_ReadBatteryVoltage());
 
     uint32_t led_tick = HAL_GetTick();
+    uint32_t diag_tick = HAL_GetTick();
+    uint8_t last_key_state = 0xFFU;
 
     for (;;) {
         BSP_Keys_Scan();
+
+        {
+            uint8_t key_state = 0U;
+            key_state |= (BSP_Key_Up() == 0U) ? 0x08U : 0U;
+            key_state |= (BSP_Key_Down() == 0U) ? 0x04U : 0U;
+            key_state |= (BSP_Key_Enter() == 0U) ? 0x02U : 0U;
+            key_state |= (BSP_Key_Back() == 0U) ? 0x01U : 0U;
+            if (key_state != last_key_state) {
+                last_key_state = key_state;
+                printf("[key] U/D/E/B=%d%d%d%d out=%u pressed=0x%X raw=0x%02X\r\n",
+                       BSP_Key_Up(), BSP_Key_Down(), BSP_Key_Enter(), BSP_Key_Back(),
+                       BSP_Keys_JoyRaw(), key_state, BSP_Keys_RawMask());
+            }
+        }
 
         if (OLED_UI_TakeTick()) {
             OLED_UI_InterruptHandler();
@@ -79,8 +102,66 @@ int main(void)
             BSP_Led_Toggle();
         }
 
+        /* 2 s heartbeat: key levels and battery are visible on the console
+           without any display fitted. */
+        if ((HAL_GetTick() - diag_tick) >= 2000U) {
+            diag_tick = HAL_GetTick();
+            printf("[hb] t=%lus keys U/D/E/B=%d%d%d%d out=%u bat=%lumV\r\n",
+                   (unsigned long)(HAL_GetTick() / 1000U),
+                   BSP_Key_Up(), BSP_Key_Down(), BSP_Key_Enter(), BSP_Key_Back(),
+                   BSP_Keys_JoyRaw(),
+                   (unsigned long)(Power_ReadBatteryVoltage() * 1000.0f));
+        }
+
         HAL_Delay(10U);
     }
+}
+
+/**
+  * @brief  Console-only board check.  Keeps working with no OLED / modem / WiFi.
+  */
+static void Board_SelfTest(void)
+{
+    uint32_t uid0 = HAL_GetUIDw0();
+    uint32_t uid1 = HAL_GetUIDw1();
+    uint32_t uid2 = HAL_GetUIDw2();
+    uint16_t flash_kb = *(__IO uint16_t *)FLASHSIZE_BASE;
+    uint32_t clock_src = __HAL_RCC_GET_SYSCLK_SOURCE();
+    const char *clock_name;
+    uint16_t raw = BSP_Power_ReadAdcAvg(BATT_ADC_CHANNEL, 8U);
+    float vbat = ((float)raw / 4095.0f) * 3.3f * POWER_VBAT_RATIO;
+
+    switch (clock_src) {
+        case RCC_SYSCLKSOURCE_STATUS_HSI: clock_name = "HSI"; break;
+        case RCC_SYSCLKSOURCE_STATUS_HSE: clock_name = "HSE"; break;
+        case RCC_SYSCLKSOURCE_STATUS_PLLCLK: clock_name = "PLL"; break;
+        default: clock_name = "?"; break;
+    }
+
+    BSP_Keys_Scan();
+
+    printf("\r\n[selftest] ---------------- board check ----------------\r\n");
+    printf("[selftest] UID       : %08lX-%08lX-%08lX\r\n",
+           (unsigned long)uid0, (unsigned long)uid1, (unsigned long)uid2);
+    printf("[selftest] MCU flash : %u KB\r\n", (unsigned)flash_kb);
+    printf("[selftest] SYSCLK    : %lu Hz (%s), HCLK %lu Hz\r\n",
+           (unsigned long)SystemCoreClock, clock_name,
+           (unsigned long)HAL_RCC_GetHCLKFreq());
+    printf("[selftest] UART1     : 115200 8N1 OK (PA9/PA10)\r\n");
+    printf("[selftest] keys      : U/D/E/B = %d/%d/%d/%d (0=pressed)\r\n",
+           BSP_Key_Up(), BSP_Key_Down(), BSP_Key_Enter(), BSP_Key_Back());
+    printf("[selftest] 5-way     : OUT1/OUT2 raw=%u, KEY0..4 mask=0x%02X\r\n",
+           BSP_Keys_JoyRaw(), BSP_Keys_RawMask());
+    printf("[selftest] BAT raw   : %u  -> %.2f V (ratio %.2f)\r\n",
+           (unsigned)raw, (double)vbat, (double)POWER_VBAT_RATIO);
+    printf("[selftest] LED PD15  : heartbeat after this banner\r\n");
+    printf("[selftest] BEEP PB9  : short tone after this banner\r\n");
+    printf("[selftest] --------------------------------------------------\r\n");
+
+    BSP_Buzzer_Tone(2700U, 500U);
+    BSP_Led_Set(true);
+    BSP_DelayMs(100);
+    BSP_Led_Set(false);
 }
 
 /**
@@ -99,7 +180,11 @@ static void SystemClock_Config(void)
     osc.PLL.PLLState = RCC_PLL_ON;
     osc.PLL.PLLSource = RCC_PLLSOURCE_HSE;
     osc.PLL.PLLM = 8U;
-    osc.PLL.PLLN = 360U;
+#if defined(TARGET_STM32F407)
+    osc.PLL.PLLN = 336U;   /* 168 MHz, F407 maximum */
+#else
+    osc.PLL.PLLN = 360U;   /* 180 MHz, F429 with over-drive */
+#endif
     osc.PLL.PLLP = RCC_PLLP_DIV2;
     osc.PLL.PLLQ = 7U;
 
@@ -127,10 +212,13 @@ static void SystemClock_Config(void)
         return;
     }
 
-    /* 180 MHz needs over-drive on the STM32F42x/43x. */
+#if !defined(TARGET_STM32F407)
+    /* 180 MHz needs over-drive on the STM32F42x/43x; the F407 tops out at
+       168 MHz and has no over-drive. */
     if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
         Error_Handler();
     }
+#endif
 
     clk.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
                     RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;

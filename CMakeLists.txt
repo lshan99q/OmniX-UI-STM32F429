@@ -29,9 +29,20 @@ add_compile_options(
     -fdata-sections
     -fno-common)
 
-set(LINKER_SCRIPT "${FW_DIR}/Startup/STM32F429VETx_FLASH.ld")
+set(MCU_FAMILY "F429" CACHE STRING "Target MCU family: F429 or F407")
+if(MCU_FAMILY STREQUAL "F407")
+    set(MCU_DEFINE STM32F407xx)
+    set(STARTUP_FILE "${FW_DIR}/Startup/startup_stm32f407xx.s")
+    set(LINKER_SCRIPT "${FW_DIR}/Startup/STM32F407VETx_FLASH.ld")
+    set(FW_TARGET "OmniX_STM32F407")
+else()
+    set(MCU_DEFINE STM32F429xx)
+    set(STARTUP_FILE "${FW_DIR}/Startup/startup_stm32f429xx.s")
+    set(LINKER_SCRIPT "${FW_DIR}/Startup/STM32F429VETx_FLASH.ld")
+    set(FW_TARGET "OmniX_STM32F429")
+endif()
 
-add_executable(OmniX_STM32F429
+set(FW_SOURCES
     # Application
     ${FW_DIR}/Core/Src/main.c
     ${FW_DIR}/Core/Src/stm32f4xx_it.c
@@ -44,6 +55,7 @@ add_executable(OmniX_STM32F429
     ${FW_DIR}/BSP/Src/bsp_serial.c
     ${FW_DIR}/BSP/Src/bsp_buzzer.c
     ${FW_DIR}/BSP/Src/bsp_led.c
+    ${FW_DIR}/BSP/Src/bsp_log.c
     ${FW_DIR}/App/Services/Power.c
     # OmniX_UI v1.4
     ${FW_DIR}/App/OmniX/OLED_UI.c
@@ -53,7 +65,7 @@ add_executable(OmniX_STM32F429
     ${FW_DIR}/App/OmniX/OLED_driver.c
     ${FW_DIR}/App/OmniX/OLED_UI_Driver.c
     # Startup
-    ${FW_DIR}/Startup/startup_stm32f429xx.s
+    ${STARTUP_FILE}
     # STM32F4 HAL (only the modules this firmware uses)
     ${FW_DIR}/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c
     ${FW_DIR}/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c
@@ -76,7 +88,10 @@ add_executable(OmniX_STM32F429
     ${FW_DIR}/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c
 )
 
-target_include_directories(OmniX_STM32F429 PRIVATE
+list(LENGTH FW_SOURCES FW_SOURCES_N)
+message(STATUS "FW_DIR=[${FW_DIR}] TARGET=[${FW_TARGET}] N=[${FW_SOURCES_N}]")
+add_executable(${FW_TARGET} ${FW_SOURCES})
+target_include_directories(${FW_TARGET} PRIVATE
     ${FW_DIR}/Core/Inc
     ${FW_DIR}/BSP/Inc
     ${FW_DIR}/App/OmniX
@@ -86,35 +101,50 @@ target_include_directories(OmniX_STM32F429 PRIVATE
     ${FW_DIR}/Drivers/CMSIS/Include
 )
 
-target_compile_definitions(OmniX_STM32F429 PRIVATE
-    STM32F429xx
+target_compile_definitions(${FW_TARGET} PRIVATE
+    ${MCU_DEFINE}
     USE_HAL_DRIVER
     HSE_VALUE=8000000U
 )
 
-target_link_options(OmniX_STM32F429 PRIVATE
+option(DEBUG_UART_ON_USART2
+       "Route the console to USART2 PD5/PD6 (CN1) for board bring-up" OFF)
+if(DEBUG_UART_ON_USART2)
+    target_compile_definitions(${FW_TARGET} PRIVATE DEBUG_UART_ON_USART2=1)
+endif()
+
+option(USE_SEMIHOSTING
+       "Send printf over ST-Link semihosting (no USB-TTL required)" OFF)
+if(USE_SEMIHOSTING)
+    target_compile_definitions(${FW_TARGET} PRIVATE USE_SEMIHOSTING=1)
+endif()
+if(MCU_FAMILY STREQUAL "F407")
+    target_compile_definitions(${FW_TARGET} PRIVATE TARGET_STM32F407=1)
+endif()
+
+target_link_options(${FW_TARGET} PRIVATE
     ${MCU_FLAGS}
     -T${LINKER_SCRIPT}
     -Wl,--gc-sections
-    -Wl,-Map=${CMAKE_BINARY_DIR}/OmniX_STM32F429.map
+    -Wl,-Map=${CMAKE_BINARY_DIR}/${FW_TARGET}.map
     -Wl,--print-memory-usage
     -specs=nano.specs
     -specs=nosys.specs
     -Wl,-u,_printf_float)
 
-target_link_libraries(OmniX_STM32F429 PRIVATE m)
+target_link_libraries(${FW_TARGET} PRIVATE m)
 
-set_target_properties(OmniX_STM32F429 PROPERTIES
+set_target_properties(${FW_TARGET} PROPERTIES
     SUFFIX ".elf"
     LINK_DEPENDS "${LINKER_SCRIPT}")
 
-add_custom_command(TARGET OmniX_STM32F429 POST_BUILD
+add_custom_command(TARGET ${FW_TARGET} POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -O ihex
-            $<TARGET_FILE:OmniX_STM32F429>
-            ${CMAKE_BINARY_DIR}/OmniX_STM32F429.hex
+            $<TARGET_FILE:${FW_TARGET}>
+            ${CMAKE_BINARY_DIR}/${FW_TARGET}.hex
     COMMAND ${CMAKE_OBJCOPY} -O binary
-            $<TARGET_FILE:OmniX_STM32F429>
-            ${CMAKE_BINARY_DIR}/OmniX_STM32F429.bin
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:OmniX_STM32F429>
+            $<TARGET_FILE:${FW_TARGET}>
+            ${CMAKE_BINARY_DIR}/${FW_TARGET}.bin
+    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${FW_TARGET}>
     COMMENT "Generating HEX/BIN"
 )

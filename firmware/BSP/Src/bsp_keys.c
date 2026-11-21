@@ -124,12 +124,17 @@ void BSP_Keys_Init(void)
     gpio.Pin = KEY1_PIN | KEY2_PIN | KEY3_PIN;
     HAL_GPIO_Init(GPIOE, &gpio);
 
-    if (BSP_JOY_USE_ADC) {
-        gpio.Pin = JOY1_PIN | JOY2_PIN;
-        gpio.Mode = GPIO_MODE_ANALOG;
-        gpio.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOA, &gpio);
-    }
+#if BSP_JOY_USE_ADC
+    gpio.Pin = JOY1_PIN | JOY2_PIN;
+    gpio.Mode = GPIO_MODE_ANALOG;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &gpio);
+#else
+    gpio.Pin = JOY1_PIN | JOY2_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOA, &gpio);
+#endif
 
     for (uint32_t i = 0U; i < 5U; i++) {
         keys[i].stable = (HAL_GPIO_ReadPin(keys[i].port, keys[i].pin) == GPIO_PIN_SET) ? 1U : 0U;
@@ -168,22 +173,54 @@ void BSP_Keys_Scan(void)
     }
 }
 
+/*
+ * Five-way switch mapping measured on this board (KEY0..KEY4 share the
+ * direction contacts):
+ *   up      -> KEY2 (PE10)
+ *   down    -> KEY4 (PB10)
+ *   left    -> KEY0 (PB2)   -> Back
+ *   right   -> KEY3 (PE15)  -> Enter
+ *   centre  -> KEY1 (PE9)   -> Enter
+ */
 uint8_t BSP_Key_Up(void)
 {
-    return (keys[1].stable || (joy_stable & JOY_UP_BIT)) ? 0U : 1U;
+    return (keys[2].stable || (joy_stable & JOY_UP_BIT)) ? 0U : 1U;
 }
 
 uint8_t BSP_Key_Down(void)
 {
-    return (keys[2].stable || (joy_stable & JOY_DOWN_BIT)) ? 0U : 1U;
+    return (keys[4].stable || (joy_stable & JOY_DOWN_BIT)) ? 0U : 1U;
 }
 
 uint8_t BSP_Key_Enter(void)
 {
-    return (keys[3].stable || keys[0].stable || (joy_stable & JOY_RIGHT_BIT)) ? 0U : 1U;
+    return (keys[3].stable || keys[1].stable || (joy_stable & JOY_RIGHT_BIT)) ? 0U : 1U;
 }
 
 uint8_t BSP_Key_Back(void)
 {
-    return (keys[4].stable || (joy_stable & JOY_LEFT_BIT)) ? 0U : 1U;
+    return (keys[0].stable || (joy_stable & JOY_LEFT_BIT)) ? 0U : 1U;
+}
+
+uint8_t BSP_Keys_JoyRaw(void)
+{
+    uint8_t raw = 0U;
+    if (HAL_GPIO_ReadPin(JOY1_PORT, JOY1_PIN) == GPIO_PIN_SET) {
+        raw |= 0x02U;
+    }
+    if (HAL_GPIO_ReadPin(JOY2_PORT, JOY2_PIN) == GPIO_PIN_SET) {
+        raw |= 0x01U;
+    }
+    return raw;
+}
+
+uint8_t BSP_Keys_RawMask(void)
+{
+    uint8_t mask = 0U;
+    for (uint32_t i = 0U; i < 5U; i++) {
+        if (keys[i].stable == 0U) {
+            mask |= (uint8_t)(1U << i);
+        }
+    }
+    return mask;
 }

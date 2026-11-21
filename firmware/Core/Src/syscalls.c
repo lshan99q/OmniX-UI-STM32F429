@@ -9,13 +9,41 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "bsp_serial.h"
+#include "bsp_log.h"
+
+#if defined(USE_SEMIHOSTING)
+/* ARM semihosting SYS_WRITE: r0=0x05, r1=handle(1=stdout), r2=buf, r3=len.
+   st-util --semihosting / a real GDB server services the BKPT over SWD, so
+   the console works even when no USB-TTL is fitted. */
+static int semihost_write(int handle, const char *buf, int len)
+{
+    register int r0 __asm__("r0") = 0x05;
+    register int r1 __asm__("r1") = handle;
+    register const char *r2 __asm__("r2") = buf;
+    register int r3 __asm__("r3") = len;
+
+    __asm__ volatile("bkpt 0xAB"
+                     : "+r"(r0)
+                     : "r"(r1), "r"(r2), "r"(r3)
+                     : "memory");
+    return r0;
+}
 
 int _write(int file, char *ptr, int len)
 {
     (void)file;
+    BSP_Log_Write(ptr, (uint32_t)len);
+    return semihost_write(1, ptr, len);
+}
+#else
+int _write(int file, char *ptr, int len)
+{
+    (void)file;
+    BSP_Log_Write(ptr, (uint32_t)len);
     BSP_Serial_Write((const uint8_t *)ptr, (uint32_t)len);
     return len;
 }
+#endif
 
 int _read(int file, char *ptr, int len)
 {

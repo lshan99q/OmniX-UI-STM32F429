@@ -22,8 +22,14 @@ void Timer_Init(void)
     __HAL_RCC_TIM6_CLK_ENABLE();
 
     htim6.Instance = TIM6;
-    /* APB1 timer clock = 90 MHz, /9000 = 10 kHz, /200 = 20 ms. */
-    htim6.Init.Prescaler = 8999U;
+    /* Timer clock is PCLK1, doubled when the APB1 prescaler is not 1.
+       180 MHz -> 90 MHz, 168 MHz -> 84 MHz; /10000 = 10 kHz, /200 = 20 ms. */
+    {
+        uint32_t hclk = HAL_RCC_GetHCLKFreq();
+        uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+        uint32_t tim_clk = (pclk1 == hclk) ? pclk1 : (pclk1 * 2U);
+        htim6.Init.Prescaler = (tim_clk / 10000U) - 1U;
+    }
     htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim6.Init.Period = 199U;
     htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;

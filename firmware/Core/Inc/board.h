@@ -54,7 +54,7 @@
 #define JOY1_PIN                 GPIO_PIN_4
 #define JOY2_PORT                GPIOA
 #define JOY2_PIN                 GPIO_PIN_5
-#define BSP_JOY_USE_ADC          1
+#define BSP_JOY_USE_ADC          0
 #define BSP_JOY_DEADZONE         550U
 #define BSP_JOY_INVERT_Y         0
 #define BSP_JOY_INVERT_X         0
@@ -105,12 +105,27 @@
 #define FLASH_CS_PIN             GPIO_PIN_0
 
 /* -------------------------------------------------------------------------- */
-/*  Debug UART: USART1 PA9/PA10, 115200 8N1                                   */
+/*  Debug UART                                                                 */
+/*    default: USART1 PA9/PA10, 115200 8N1                                     */
+/*    bring-up build: -DDEBUG_UART_ON_USART2=1 -> USART2 PD5/PD6 (CN1),        */
+/*    which is free while the ESP8266 is not fitted.                           */
 /* -------------------------------------------------------------------------- */
+#if defined(DEBUG_UART_ON_USART2) && (DEBUG_UART_ON_USART2)
+#define DBG_UART                 USART2
+#define DBG_UART_AF              GPIO_AF7_USART2
+#define DBG_UART_CLK_ENABLE()    __HAL_RCC_USART2_CLK_ENABLE()
+#define DBG_GPIO_PORT            GPIOD
+#define DBG_GPIO_CLK_ENABLE()    __HAL_RCC_GPIOD_CLK_ENABLE()
+#define DBG_TX_PIN               GPIO_PIN_5
+#define DBG_RX_PIN               GPIO_PIN_6
+#else
 #define DBG_UART                 USART1
-#define DBG_TX_PORT              GPIOA
+#define DBG_UART_AF              GPIO_AF7_USART1
+#define DBG_UART_CLK_ENABLE()    __HAL_RCC_USART1_CLK_ENABLE()
+#define DBG_GPIO_PORT            GPIOA
+#define DBG_GPIO_CLK_ENABLE()    __HAL_RCC_GPIOA_CLK_ENABLE()
 #define DBG_TX_PIN               GPIO_PIN_9
-#define DBG_RX_PORT              GPIOA
 #define DBG_RX_PIN               GPIO_PIN_10
+#endif
 
 #endif /* __BOARD_H */

@@ -73,7 +73,8 @@ static char *heap_end = 0;
 void *_sbrk(int incr)
 {
     char *prev_heap_end;
-    const uint32_t guard = 4096U;
+    /* Must match _Min_Stack_Size in the linker script (8 KB). */
+    const uint32_t guard = 8192U;
 
     if (heap_end == 0) {
         heap_end = &_end;

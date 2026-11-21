@@ -404,7 +404,6 @@ MenuItem SmallAreaMenuItems[] = {
 // Power菜单项的动态文本缓冲区
 static char power_bat_level_text[24] = "Bat: --- %%";
 static char power_bat_volt_text[24] = "Vbat: --- V";
-static char power_usb_status_text[24] = "USB: ---";
 
 //Power应用页面辅助显示函数 - 更新菜单项文本
 void PowerAuxFunc(void){
@@ -416,11 +415,9 @@ void PowerAuxFunc(void){
 	if (data.valid) {
 		snprintf(power_bat_level_text, sizeof(power_bat_level_text), "Bat: %d %%", data.battery_percent);
 		snprintf(power_bat_volt_text, sizeof(power_bat_volt_text), "Vbat: %.2f V", data.battery_voltage);
-		snprintf(power_usb_status_text, sizeof(power_usb_status_text), "USB: %s", data.usb_inserted ? "Inserted" : "Not Insert");
 	} else {
 		snprintf(power_bat_level_text, sizeof(power_bat_level_text), "Bat: --- %%");
 		snprintf(power_bat_volt_text, sizeof(power_bat_volt_text), "Vbat: --- V");
-		snprintf(power_usb_status_text, sizeof(power_usb_status_text), "USB: ---");
 	}
 }
 
@@ -428,7 +425,6 @@ void PowerAuxFunc(void){
 MenuItem PowerMenuItems[] = {
 	{.General_item_text = power_bat_level_text,.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = power_bat_volt_text,.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
-	{.General_item_text = power_usb_status_text,.General_callback = NULL,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = "[Back]",.General_callback = OLED_UI_Back,.General_SubMenuPage = NULL,.List_BoolRadioBox = NULL},
 	{.General_item_text = NULL},/*最后一项的General_item_text置为NULL，表示该项为分割线*/
 };

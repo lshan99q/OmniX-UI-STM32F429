@@ -1,0 +1,18 @@
+build/
+build-*/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.su
+*.swp
+.vscode/
+.idea/
+.DS_Store
+
+# Prebuilt images are intentional deliverables.
+!prebuilt/*.elf
+!prebuilt/*.hex
+!prebuilt/*.bin
